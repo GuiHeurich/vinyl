@@ -1,3 +1,9 @@
+use std::io::{Read, Cursor};
+use std::thread;
+use std::time::Duration;
+use reqwest::blocking::Client;
+use rodio::{Decoder, OutputStream, Sink};
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -28,12 +34,6 @@ impl TemplateApp {
         }
     }
 }
-
-use std::io::{Read, Cursor};
-use std::thread;
-use std::time::Duration;
-use reqwest::blocking::Client;
-use rodio::{Decoder, OutputStream, Sink};
 
 impl eframe::App for TemplateApp {
     /// Called by the framework to save state before shutdown.
