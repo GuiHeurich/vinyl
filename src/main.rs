@@ -20,7 +20,10 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "vinyl - rusty radio",
         native_options,
-        Box::new(|cc| Ok(Box::new(vinyl::TemplateApp::new(cc)))),
+        Box::new(|cc| {
+            egui_extras::install_image_loaders(&cc.egui_ctx);
+            Ok(Box::new(vinyl::TemplateApp::new(cc)))
+        }),
     )
 }
 

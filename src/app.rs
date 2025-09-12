@@ -84,6 +84,12 @@ impl eframe::App for TemplateApp {
 
             ui.label(format!("Current stream URL: {}", self.stream_url));
 
+            ui.separator();
+
+            ui.add(
+              egui::Image::new(egui::include_image!("../assets/icon-vinyl.png"))
+                .corner_radius(5)
+            );
         });
     }
 }
