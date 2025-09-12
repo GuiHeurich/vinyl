@@ -8,7 +8,7 @@ pub struct TemplateApp {
 impl Default for TemplateApp {
     fn default() -> Self {
         Self {
-            stream_url: "https://upload.wikimedia.org/wikipedia/commons/1/10/Haruo_Sat%C5%8D_-_Kokoro-kayo_wa_zaru-bi_ni.ogg".to_owned(),
+            stream_url: "Paste a URL to stream here".to_owned(),
         }
     }
 }
