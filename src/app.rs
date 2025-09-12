@@ -16,6 +16,7 @@ impl Default for TemplateApp {
             // Example stuff:
             label: "Hello World!".to_owned(),
             value: 2.7,
+            stream_url: "https://upload.wikimedia.org/wikipedia/commons/1/10/Haruo_Sat%C5%8D_-_Kokoro-kayo_wa_zaru-bi_ni.ogg".to_owned(),
         }
     }
 }
@@ -40,9 +41,15 @@ impl TemplateApp {
 // use std::thread;
 // use std::io::Cursor;
 
-use std::fs::File;
-use rodio::{Decoder, OutputStream, source::Source};
-use std::io::BufReader;
+// use std::fs::File;
+use rodio::{Decoder, OutputStream};
+// use std::io::BufReader;
+use std::io::Cursor;
+// use rodio::Source;
+use rodio::Sink;
+use std::thread;
+use std::time::Duration;
+
 
 impl eframe::App for TemplateApp {
     /// Called by the framework to save state before shutdown.
@@ -78,10 +85,7 @@ impl eframe::App for TemplateApp {
             // The central panel the region left after adding TopPanel's and SidePanel's
             ui.heading("vinyl - rusty radio");
 
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(&mut self.label);
-            });
+            ui.text_edit_singleline(&mut self.stream_url);
 
             ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
             if ui.button("Increment").clicked() {
@@ -91,25 +95,109 @@ impl eframe::App for TemplateApp {
             ui.separator();
 
             if ui.button("Play").clicked() {
-                let file = File::open("examples/Imperial_Rescript_on_the_Termination_of_the_War_(full_broadcast).ogg").unwrap();
-                let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
-                let sink = rodio::Sink::try_new(&stream_handle).unwrap();
-                let source = Decoder::new(BufReader::new(file)).unwrap();
-                sink.append(source);
-                sink.sleep_until_end();
+                // let file = File::open("examples/Imperial_Rescript_on_the_Termination_of_the_War_(full_broadcast).ogg").unwrap();
+                // let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
+                // let sink = rodio::Sink::try_new(&stream_handle).unwrap();
+                // let source = Decoder::new(BufReader::new(file)).unwrap();
+                // sink.append(source);
+                // sink.sleep_until_end();
 
-                // thread::spawn(move || {
-                //         let response = reqwest::blocking::get(&url).expect("Failed to fetch stream");
-                //         let bytes = response.bytes().expect("Failed to read bytes");
-                //         let cursor = Cursor::new(bytes.to_vec());
+                // Remember to add the "blocking" feature in the Cargo.toml for reqwest
+                // let resp = reqwest::blocking::get("https://upload.wikimedia.org/wikipedia/commons/e/ed/Imperial_Rescript_on_the_Termination_of_the_War_%28full_broadcast%29.ogg")
+                //     .unwrap();
+                // let cursor = Cursor::new(resp.bytes().unwrap()); // Adds Read and Seek to the bytes via Cursor
+                // let source = rodio::Decoder::new(cursor).unwrap(); // Decoder requires it's source to impl both Read and Seek
+                // let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+                // let sink = Sink::try_new(&stream_handle).unwrap();
+                // // let source = Decoder::new(cursor).unwrap();
+                // sink.append(source);
+                // sink.sleep_until_end();
 
-                //         let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-                //         let sink = Sink::try_new(&stream_handle).unwrap();
-                //         let source = Decoder::new(cursor).unwrap();
-                //         sink.append(source);
-                //         sink.sleep_until_end();
-                //     });
+
+use std::io::{Read, Cursor};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+use reqwest::blocking::Client;
+use rodio::{Decoder, OutputStream, Sink};
+
+let stream_url = self.stream_url.clone();
+
+thread::spawn(move || {
+    println!("Starting buffered stream from: {}", stream_url);
+
+    let client = Client::builder()
+        .timeout(Duration::from_secs(60))
+        .build()
+        .expect("Failed to build client");
+
+    let mut response = match client.get(&stream_url).send() {
+        Ok(resp) => {
+            println!("Response received. Status: {}", resp.status());
+            resp
+        }
+        Err(e) => {
+            eprintln!("Failed to fetch stream: {}", e);
+            return;
+        }
+    };
+
+    let mut buffer = Vec::new();
+    let mut temp = [0; 8192]; // 8 KB chunks
+
+    println!("Buffering audio...");
+
+    // Read first few chunks to start playback early
+    for _ in 0..10 {
+        match response.read(&mut temp) {
+            Ok(0) => break, // EOF
+            Ok(n) => buffer.extend_from_slice(&temp[..n]),
+            Err(e) => {
+                eprintln!("Error reading stream: {}", e);
+                return;
+            }
+        }
+    }
+
+    println!("Buffered {} bytes. Starting playback...", buffer.len());
+
+    let cursor = Cursor::new(buffer);
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let sink = Sink::try_new(&stream_handle).unwrap();
+
+    match Decoder::new(cursor) {
+        Ok(source) => {
+            sink.append(source);
+            println!("Playback started.");
+
+            // Continue buffering in background
+            thread::spawn(move || {
+                while let Ok(n) = response.read(&mut temp) {
+                    if n == 0 {
+                        break;
+                    }
+                    // You could extend the sink here with more audio if rodio supported it
+                    // But since Decoder doesn't support streaming, we can't append more
                 }
+                println!("Finished buffering.");
+            });
+
+            sink.sleep_until_end();
+            println!("Playback finished.");
+        }
+        Err(e) => {
+            eprintln!("Failed to decode stream: {}", e);
+        }
+    }
+});
+
+
+
+            }
+
+            ui.separator();
+
+            ui.label(format!("Current stream URL: {}", self.stream_url));
 
             ui.separator();
 
