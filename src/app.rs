@@ -2,20 +2,12 @@
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct TemplateApp {
-    // Example stuff:
-    label: String,
-    stream_url: String,
-
-    #[serde(skip)] // This how you opt-out of serialization of a field
-    value: f32,
+    stream_url: String
 }
 
 impl Default for TemplateApp {
     fn default() -> Self {
         Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 2.7,
             stream_url: "https://upload.wikimedia.org/wikipedia/commons/1/10/Haruo_Sat%C5%8D_-_Kokoro-kayo_wa_zaru-bi_ni.ogg".to_owned(),
         }
     }
@@ -37,19 +29,11 @@ impl TemplateApp {
     }
 }
 
-// use rodio::{Decoder, OutputStream, Sink};
-// use std::thread;
-// use std::io::Cursor;
-
-// use std::fs::File;
-use rodio::{Decoder, OutputStream};
-// use std::io::BufReader;
-use std::io::Cursor;
-// use rodio::Source;
-use rodio::Sink;
+use std::io::{Read, Cursor};
 use std::thread;
 use std::time::Duration;
-
+use reqwest::blocking::Client;
+use rodio::{Decoder, OutputStream, Sink};
 
 impl eframe::App for TemplateApp {
     /// Called by the framework to save state before shutdown.
@@ -82,48 +66,29 @@ impl eframe::App for TemplateApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
             ui.heading("vinyl - rusty radio");
 
             ui.text_edit_singleline(&mut self.stream_url);
 
-            ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                self.value += 1.0;
+            ui.separator();
+
+            if ui.button("Play").clicked() {
+                let stream_url = self.stream_url.clone();
+
+                thread::spawn(move || {
+                    generate_stream(stream_url);
+                });
             }
 
             ui.separator();
 
-            if ui.button("Play").clicked() {
-                // let file = File::open("examples/Imperial_Rescript_on_the_Termination_of_the_War_(full_broadcast).ogg").unwrap();
-                // let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
-                // let sink = rodio::Sink::try_new(&stream_handle).unwrap();
-                // let source = Decoder::new(BufReader::new(file)).unwrap();
-                // sink.append(source);
-                // sink.sleep_until_end();
+            ui.label(format!("Current stream URL: {}", self.stream_url));
 
-                // Remember to add the "blocking" feature in the Cargo.toml for reqwest
-                // let resp = reqwest::blocking::get("https://upload.wikimedia.org/wikipedia/commons/e/ed/Imperial_Rescript_on_the_Termination_of_the_War_%28full_broadcast%29.ogg")
-                //     .unwrap();
-                // let cursor = Cursor::new(resp.bytes().unwrap()); // Adds Read and Seek to the bytes via Cursor
-                // let source = rodio::Decoder::new(cursor).unwrap(); // Decoder requires it's source to impl both Read and Seek
-                // let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-                // let sink = Sink::try_new(&stream_handle).unwrap();
-                // // let source = Decoder::new(cursor).unwrap();
-                // sink.append(source);
-                // sink.sleep_until_end();
+        });
+    }
+}
 
-
-use std::io::{Read, Cursor};
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
-use reqwest::blocking::Client;
-use rodio::{Decoder, OutputStream, Sink};
-
-let stream_url = self.stream_url.clone();
-
-thread::spawn(move || {
+fn generate_stream(stream_url: String) -> () {
     println!("Starting buffered stream from: {}", stream_url);
 
     let client = Client::builder()
@@ -170,14 +135,11 @@ thread::spawn(move || {
             sink.append(source);
             println!("Playback started.");
 
-            // Continue buffering in background
             thread::spawn(move || {
                 while let Ok(n) = response.read(&mut temp) {
                     if n == 0 {
                         break;
                     }
-                    // You could extend the sink here with more audio if rodio supported it
-                    // But since Decoder doesn't support streaming, we can't append more
                 }
                 println!("Finished buffering.");
             });
@@ -189,41 +151,4 @@ thread::spawn(move || {
             eprintln!("Failed to decode stream: {}", e);
         }
     }
-});
-
-
-
-            }
-
-            ui.separator();
-
-            ui.label(format!("Current stream URL: {}", self.stream_url));
-
-            ui.separator();
-
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/main/",
-                "Source code."
-            ));
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
-                egui::warn_if_debug_build(ui);
-            });
-        });
-    }
-}
-
-fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        ui.label("Powered by ");
-        ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-        ui.label(" and ");
-        ui.hyperlink_to(
-            "eframe",
-            "https://github.com/emilk/egui/tree/master/crates/eframe",
-        );
-        ui.label(".");
-    });
 }
