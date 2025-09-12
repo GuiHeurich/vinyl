@@ -4,6 +4,7 @@
 pub struct TemplateApp {
     // Example stuff:
     label: String,
+    stream_url: String,
 
     #[serde(skip)] // This how you opt-out of serialization of a field
     value: f32,
@@ -34,6 +35,14 @@ impl TemplateApp {
         }
     }
 }
+
+// use rodio::{Decoder, OutputStream, Sink};
+// use std::thread;
+// use std::io::Cursor;
+
+use std::fs::File;
+use rodio::{Decoder, OutputStream, source::Source};
+use std::io::BufReader;
 
 impl eframe::App for TemplateApp {
     /// Called by the framework to save state before shutdown.
@@ -67,7 +76,7 @@ impl eframe::App for TemplateApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("eframe template");
+            ui.heading("vinyl - rusty radio");
 
             ui.horizontal(|ui| {
                 ui.label("Write something: ");
@@ -78,6 +87,29 @@ impl eframe::App for TemplateApp {
             if ui.button("Increment").clicked() {
                 self.value += 1.0;
             }
+
+            ui.separator();
+
+            if ui.button("Play").clicked() {
+                let file = File::open("examples/Imperial_Rescript_on_the_Termination_of_the_War_(full_broadcast).ogg").unwrap();
+                let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
+                let sink = rodio::Sink::try_new(&stream_handle).unwrap();
+                let source = Decoder::new(BufReader::new(file)).unwrap();
+                sink.append(source);
+                sink.sleep_until_end();
+
+                // thread::spawn(move || {
+                //         let response = reqwest::blocking::get(&url).expect("Failed to fetch stream");
+                //         let bytes = response.bytes().expect("Failed to read bytes");
+                //         let cursor = Cursor::new(bytes.to_vec());
+
+                //         let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+                //         let sink = Sink::try_new(&stream_handle).unwrap();
+                //         let source = Decoder::new(cursor).unwrap();
+                //         sink.append(source);
+                //         sink.sleep_until_end();
+                //     });
+                }
 
             ui.separator();
 
