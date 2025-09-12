@@ -151,6 +151,7 @@ fn generate_stream(stream_url: String) -> () {
             });
 
             sink.sleep_until_end();
+            generate_stream(stream_url.clone());
             println!("Playback finished.");
         }
         Err(e) => {
