@@ -1,20 +1,21 @@
+use reqwest::blocking::Client;
+use rodio::{Decoder, OutputStream, Sink};
+use std::io::{Cursor, Read};
+use std::thread;
+use std::time::Duration;
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct TemplateApp {
-    // Example stuff:
-    label: String,
-
-    #[serde(skip)] // This how you opt-out of serialization of a field
-    value: f32,
+    // #[serde(skip)]
+    stream_url: String,
 }
 
 impl Default for TemplateApp {
     fn default() -> Self {
         Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 2.7,
+            stream_url: "Paste a URL to stream here".to_owned(),
         }
     }
 }
@@ -66,44 +67,95 @@ impl eframe::App for TemplateApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("eframe template");
+            ui.heading("vinyl - rusty radio");
 
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(&mut self.label);
-            });
+            ui.text_edit_singleline(&mut self.stream_url);
 
-            ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                self.value += 1.0;
+            ui.separator();
+
+            if ui.button("Play").clicked() {
+                let stream_url = self.stream_url.clone();
+
+                thread::spawn(move || {
+                    generate_stream(stream_url);
+                });
             }
 
             ui.separator();
 
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/main/",
-                "Source code."
-            ));
+            ui.label(format!("Current stream URL: {}", self.stream_url));
 
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
-                egui::warn_if_debug_build(ui);
-            });
+            ui.separator();
+
+            ui.add(
+                egui::Image::new(egui::include_image!("../assets/icon-vinyl.png")).corner_radius(5),
+            );
         });
     }
 }
 
-fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        ui.label("Powered by ");
-        ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-        ui.label(" and ");
-        ui.hyperlink_to(
-            "eframe",
-            "https://github.com/emilk/egui/tree/master/crates/eframe",
-        );
-        ui.label(".");
-    });
+fn generate_stream(stream_url: String) -> () {
+    println!("Starting buffered stream from: {}", stream_url);
+
+    let client = Client::builder()
+        .timeout(Duration::from_secs(60))
+        .build()
+        .expect("Failed to build client");
+
+    let mut response = match client.get(&stream_url).send() {
+        Ok(resp) => {
+            println!("Response received. Status: {}", resp.status());
+            resp
+        }
+        Err(e) => {
+            eprintln!("Failed to fetch stream: {}", e);
+            return;
+        }
+    };
+
+    let mut buffer = Vec::new();
+    let mut temp = [0; 8192]; // 8 KB chunks
+
+    println!("Buffering audio...");
+
+    // Read first few chunks to start playback early
+    for _ in 0..10 {
+        match response.read(&mut temp) {
+            Ok(0) => break, // EOF
+            Ok(n) => buffer.extend_from_slice(&temp[..n]),
+            Err(e) => {
+                eprintln!("Error reading stream: {}", e);
+                return;
+            }
+        }
+    }
+
+    println!("Buffered {} bytes. Starting playback...", buffer.len());
+
+    let cursor = Cursor::new(buffer);
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let sink = Sink::try_new(&stream_handle).unwrap();
+
+    match Decoder::new(cursor) {
+        Ok(source) => {
+            sink.append(source);
+            println!("Playback started.");
+
+            thread::spawn(move || {
+                while let Ok(n) = response.read(&mut temp) {
+                    if n == 0 {
+                        break;
+                    }
+                }
+                println!("Finished buffering.");
+            });
+
+            sink.sleep_until_end();
+            generate_stream(stream_url.clone());
+            println!("Playback finished.");
+        }
+        Err(e) => {
+            eprintln!("Failed to decode stream: {}", e);
+        }
+    }
 }
