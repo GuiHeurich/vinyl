@@ -1,8 +1,8 @@
-use std::io::{Read, Cursor};
-use std::thread;
-use std::time::Duration;
 use reqwest::blocking::Client;
 use rodio::{Decoder, OutputStream, Sink};
+use std::io::{Cursor, Read};
+use std::thread;
+use std::time::Duration;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -88,8 +88,7 @@ impl eframe::App for TemplateApp {
             ui.separator();
 
             ui.add(
-              egui::Image::new(egui::include_image!("../assets/icon-vinyl.png"))
-                .corner_radius(5)
+                egui::Image::new(egui::include_image!("../assets/icon-vinyl.png")).corner_radius(5),
             );
         });
     }
