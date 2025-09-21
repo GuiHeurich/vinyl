@@ -25,6 +25,7 @@ rodio = "0.17"
 reqwest = { version = "0.11", features = ["blocking"] }
 egui_extras = { version = "*", features = ["all_loaders"] }
 image = { version = "0.25", features = ["jpeg", "png"] }
+openssl = { version = "0.10", features = ["vendored"] }
 
 # You only need serde if you want app persistence:
 serde = { version = "1.0.219", features = ["derive"] }
