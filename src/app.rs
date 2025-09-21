@@ -8,7 +8,8 @@ use rodio::{Decoder, OutputStream, Sink};
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct TemplateApp {
-    stream_url: String
+    // #[serde(skip)]
+    stream_url: String,
 }
 
 impl Default for TemplateApp {
